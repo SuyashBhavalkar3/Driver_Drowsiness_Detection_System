@@ -5,7 +5,7 @@ import StatusDisplay from './components/StatusDisplay'
 import WebcamMonitor from './components/WebcamMonitor'
 
 function App() {
-  const [activeTab, setActiveTab] = useState('upload')
+  const [activeTab, setActiveTab] = useState('webcam')
   const [analysisResult, setAnalysisResult] = useState(null)
   const [liveStatus, setLiveStatus] = useState(null)
   const statusIntervalRef = useRef(null)
@@ -42,25 +42,25 @@ function App() {
 
       <nav className="tabs">
         <button
-          className={`tab-button ${activeTab === 'upload' ? 'active' : ''}`}
-          onClick={() => setActiveTab('upload')}
-        >
-          📤 Upload Image
-        </button>
-        <button
           className={`tab-button ${activeTab === 'webcam' ? 'active' : ''}`}
           onClick={() => setActiveTab('webcam')}
         >
           📹 Webcam Monitor
         </button>
+        <button
+          className={`tab-button ${activeTab === 'upload' ? 'active' : ''}`}
+          onClick={() => setActiveTab('upload')}
+        >
+          📤 Upload Image
+        </button>
       </nav>
 
       <main className="content">
-        {activeTab === 'upload' && (
-          <ImageUpload setAnalysisResult={setAnalysisResult} />
-        )}
         {activeTab === 'webcam' && (
           <WebcamMonitor status={liveStatus} />
+        )}
+        {activeTab === 'upload' && (
+          <ImageUpload setAnalysisResult={setAnalysisResult} />
         )}
       </main>
 
