@@ -20,6 +20,7 @@ EAR_THRESHOLD = 0.25
 MAR_THRESHOLD = 0.7
 
 status_data = {"ear": 0.0, "mar": 0.0, "drowsy": False, "yawning": False}
+current_frame = {"image": None}  # Store the current annotated frame
 
 
 def euclidean(a: Tuple[float, float], b: Tuple[float, float]) -> float:
@@ -142,6 +143,15 @@ def get_status():
     return status_data
 
 
+@app.get("/frame")
+def get_frame():
+    """Returns the current annotated webcam frame as base64 PNG."""
+    if current_frame["image"] is None:
+        return JSONResponse(status_code=503, content={"error": "Webcam not available"})
+    
+    return {"frame": current_frame["image"]}
+
+
 # --- Optional: keep previous webcam loop support ---
 def webcam_loop():
     cap = cv2.VideoCapture(0)
@@ -173,14 +183,25 @@ def webcam_loop():
             right_ear = calculate_ear(landmarks, RIGHT_EYE)
             ear = (left_ear + right_ear) / 2.0
             mar = calculate_mar(landmarks, MOUTH)
+            drowsy = ear < EAR_THRESHOLD
+            yawning = mar > MAR_THRESHOLD
             status_data.update({
                 "ear": float(ear),
                 "mar": float(mar),
-                "drowsy": bool(ear < EAR_THRESHOLD),
-                "yawning": bool(mar > MAR_THRESHOLD),
+                "drowsy": bool(drowsy),
+                "yawning": bool(yawning),
             })
         else:
             status_data.update({"ear": 0.0, "mar": 0.0, "drowsy": False, "yawning": False})
+            drowsy = False
+            yawning = False
+        
+        # Annotate and store the frame for live feed
+        annotated = annotate_frame(frame.copy(), status_data["ear"], status_data["mar"], 
+                                   status_data["drowsy"], status_data["yawning"])
+        _, buf = cv2.imencode('.png', annotated)
+        b64 = base64.b64encode(buf).decode('ascii')
+        current_frame["image"] = f"data:image/png;base64,{b64}"
         time.sleep(0.03)
 
 

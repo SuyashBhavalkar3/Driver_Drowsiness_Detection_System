@@ -1,6 +1,33 @@
+import { useEffect, useRef } from 'react'
 import './WebcamMonitor.css'
 
 export default function WebcamMonitor({ status }) {
+  const frameIntervalRef = useRef(null)
+  const frameImgRef = useRef(null)
+
+  // Fetch live frame image
+  useEffect(() => {
+    frameIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await fetch('http://localhost:8000/frame')
+        if (response.ok) {
+          const data = await response.json()
+          if (frameImgRef.current && data.frame) {
+            frameImgRef.current.src = data.frame
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch frame:', error)
+      }
+    }, 100)  // Update frame every 100ms (10 FPS)
+
+    return () => {
+      if (frameIntervalRef.current) {
+        clearInterval(frameIntervalRef.current)
+      }
+    }
+  }, [])
+
   if (!status) {
     return (
       <div className="monitor-container">
@@ -28,7 +55,12 @@ export default function WebcamMonitor({ status }) {
             <span>Live Webcam Feed</span>
           </div>
           <div className="feed-placeholder">
-            📹 Webcam feed from backend
+            <img 
+              ref={frameImgRef}
+              alt="Live Feed" 
+              className="live-image"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
           </div>
         </div>
 
