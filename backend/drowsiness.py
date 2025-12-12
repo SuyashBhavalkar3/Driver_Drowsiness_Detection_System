@@ -9,6 +9,8 @@ import mediapipe as mp
 import numpy as np
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 LEFT_EYE = [33, 160, 158, 133, 153, 144]
 RIGHT_EYE = [362, 385, 387, 263, 373, 380]
@@ -57,6 +59,19 @@ def annotate_frame(frame: np.ndarray, ear: float, mar: float, drowsy: bool, yawn
 
 
 app = FastAPI(title="Drowsiness Detection API")
+
+
+origins = [
+    "http://localhost:5173",  # React dev server
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # or ["*"] to allow all (not recommended for production)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
