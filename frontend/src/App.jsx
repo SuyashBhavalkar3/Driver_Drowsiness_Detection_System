@@ -1,72 +1,52 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import './App.css'
-import ImageUpload from './components/ImageUpload'
-import StatusDisplay from './components/StatusDisplay'
-import WebcamMonitor from './components/WebcamMonitor'
+import { Header } from './components/common'
+import { ImageUploadPage, WebcamMonitorPage, AnalysisResultsPage } from './components/pages'
 
 function App() {
   const [activeTab, setActiveTab] = useState('webcam')
   const [analysisResult, setAnalysisResult] = useState(null)
-  const [liveStatus, setLiveStatus] = useState(null)
-  const statusIntervalRef = useRef(null)
-
-  // Fetch live status every 500ms
-  useEffect(() => {
-    if (activeTab === 'webcam') {
-      statusIntervalRef.current = setInterval(async () => {
-        try {
-          const response = await fetch('http://localhost:8000/status')
-          if (response.ok) {
-            const data = await response.json()
-            setLiveStatus(data)
-          }
-        } catch (error) {
-          console.error('Failed to fetch status:', error)
-        }
-      }, 500)
-    }
-
-    return () => {
-      if (statusIntervalRef.current) {
-        clearInterval(statusIntervalRef.current)
-      }
-    }
-  }, [activeTab])
 
   return (
-    <div className="app-container">
-      <header className="header">
-        <h1>🚗 Driver Drowsiness Detection System</h1>
-        <p>Detect driver drowsiness and yawning in real-time</p>
-      </header>
+    <div className="app">
+      <Header />
 
-      <nav className="tabs">
-        <button
-          className={`tab-button ${activeTab === 'webcam' ? 'active' : ''}`}
-          onClick={() => setActiveTab('webcam')}
-        >
-          📹 Webcam Monitor
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'upload' ? 'active' : ''}`}
-          onClick={() => setActiveTab('upload')}
-        >
-          📤 Upload Image
-        </button>
-      </nav>
+      <main className="app-main">
+        {/* Tab Navigation */}
+        <nav className="tab-nav">
+          <button
+            className={`tab-button ${activeTab === 'webcam' ? 'active' : ''}`}
+            onClick={() => setActiveTab('webcam')}
+            aria-label="Switch to webcam monitoring"
+          >
+            📹 Webcam Monitor
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'upload' ? 'active' : ''}`}
+            onClick={() => setActiveTab('upload')}
+            aria-label="Switch to image upload"
+          >
+            📤 Upload Image
+          </button>
+        </nav>
 
-      <main className="content">
-        {activeTab === 'webcam' && (
-          <WebcamMonitor status={liveStatus} />
-        )}
-        {activeTab === 'upload' && (
-          <ImageUpload setAnalysisResult={setAnalysisResult} />
-        )}
+        {/* Tab Content */}
+        <section className="tab-content">
+          {activeTab === 'webcam' && <WebcamMonitorPage />}
+
+          {activeTab === 'upload' && (
+            <div>
+              <ImageUploadPage onResultChange={setAnalysisResult} />
+              {analysisResult && <AnalysisResultsPage result={analysisResult} />}
+            </div>
+          )}
+        </section>
       </main>
 
-      {analysisResult && activeTab === 'upload' && (
-        <StatusDisplay result={analysisResult} />
-      )}
+      {/* Footer */}
+      <footer className="app-footer">
+        <p>🚗 Driver Drowsiness Detection System • Real-time AI Safety Monitoring</p>
+      </footer>
     </div>
   )
 }

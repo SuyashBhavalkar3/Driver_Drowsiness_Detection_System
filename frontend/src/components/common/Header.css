@@ -1,0 +1,72 @@
+.header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px 16px;          /* Reduced height */
+  border-radius: 12px;         /* Smaller edge radius */
+  margin: 20px auto;           /* Center & reduce spacing */
+  box-shadow: 0 12px 32px rgba(102, 126, 234, 0.25);
+
+  max-width: 700px;            /* Reduce width */
+  width: 90%;                  /* Responsive */
+
+  position: relative;
+  overflow: hidden;
+}
+
+.header::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -40%;
+  width: 180%;
+  height: 180%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+.header-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;                   /* Slightly tighter spacing */
+}
+
+.header-icon {
+  font-size: 36px;             /* Smaller icon */
+}
+
+.header h1 {
+  font-size: 1.8rem;           /* Reduced header size */
+  margin: 0 0 4px 0;
+  color: white;
+}
+
+.header p {
+  font-size: 1rem;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 24px 16px;
+  }
+
+  .header-content {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .header h1 {
+    font-size: 1.8rem;
+  }
+
+  .header p {
+    font-size: 1rem;
+  }
+
+  .header-icon {
+    font-size: 40px;
+  }
+}

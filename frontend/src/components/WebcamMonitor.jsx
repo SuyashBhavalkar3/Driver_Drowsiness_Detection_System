@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
 import './WebcamMonitor.css'
+import { audioAlert } from '../utils/audioAlert'
 
 export default function WebcamMonitor({ status }) {
   const frameIntervalRef = useRef(null)
   const frameImgRef = useRef(null)
+  const lastAlertStateRef = useRef({ drowsy: false, yawning: false })
 
   // Fetch live frame image
   useEffect(() => {
@@ -19,7 +21,7 @@ export default function WebcamMonitor({ status }) {
       } catch (error) {
         console.error('Failed to fetch frame:', error)
       }
-    }, 100)  // Update frame every 100ms (10 FPS)
+    }, 10)  // Update frame every 100ms (10 FPS)
 
     return () => {
       if (frameIntervalRef.current) {
@@ -27,6 +29,29 @@ export default function WebcamMonitor({ status }) {
       }
     }
   }, [])
+
+  // Handle alerts when status changes
+  useEffect(() => {
+    if (!status) return
+
+    const { drowsy, yawning } = status
+    const lastState = lastAlertStateRef.current
+
+    // Check for state changes to trigger alerts
+    if (drowsy && yawning && !(lastState.drowsy && lastState.yawning)) {
+      // Just became critical (both drowsy and yawning)
+      audioAlert.alertCritical()
+    } else if (drowsy && !lastState.drowsy) {
+      // Just became drowsy
+      audioAlert.alertDrowsy()
+    } else if (yawning && !lastState.yawning) {
+      // Just started yawning
+      audioAlert.alertYawning()
+    }
+
+    // Update last state
+    lastAlertStateRef.current = { drowsy, yawning }
+  }, [status])
 
   if (!status) {
     return (

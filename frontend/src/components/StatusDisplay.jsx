@@ -1,7 +1,20 @@
+import { useEffect } from 'react'
 import './StatusDisplay.css'
+import { audioAlert } from '../utils/audioAlert'
 
 export default function StatusDisplay({ result }) {
   const { ear, mar, drowsy, yawning, annotated_image } = result
+
+  // Play alert sound when result shows drowsiness or yawning
+  useEffect(() => {
+    if (drowsy && yawning) {
+      audioAlert.alertCritical()
+    } else if (drowsy) {
+      audioAlert.alertDrowsy()
+    } else if (yawning) {
+      audioAlert.alertYawning()
+    }
+  }, [drowsy, yawning])
 
   const getAlertStatus = () => {
     if (drowsy && yawning) return { text: '⚠️ CRITICAL: Drowsy & Yawning', color: 'critical' }
