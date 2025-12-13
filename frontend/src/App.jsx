@@ -11,7 +11,15 @@ function App() {
     <div className="app">
       <Header />
 
-      <h1>It Will Not Work On Website Realtime Beacuse Renders Free Plan Doesnt Support Web Sockets You Can Try Out With Images</h1>
+      <div style={{ textAlign: "center", marginTop: "20px" }}>
+        <h3 style={{ color: "red" }}>
+          ⚠️ Realtime webcam detection will not work on this website.
+        </h3>
+        <p>
+          This is because Render’s free plan does not support WebSockets. 
+          You can still upload images to test the drowsiness detection feature.
+        </p>
+      </div>
 
       <main className="app-main">
         {/* Tab Navigation */}
