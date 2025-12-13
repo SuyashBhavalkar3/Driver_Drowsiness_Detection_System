@@ -3,7 +3,7 @@
  * WebSocket is handled separately
  */
 
-const API_BASE_URL = 'http://localhost:8000'
+const API_BASE_URL = 'https://drowsiness-backend-kq31.onrender.com'
 
 class ApiError extends Error {
   constructor(message, status = 0) {

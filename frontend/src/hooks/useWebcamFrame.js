@@ -31,7 +31,7 @@ export const useWebcamFrame = (enabled = true, fps = 10) => {
         await videoRef.current.play()
 
         // 2️⃣ Setup WebSocket
-        wsRef.current = new WebSocket('ws://localhost:8000/ws/webcam')
+        wsRef.current = new WebSocket("wss://drowsiness-backend-kq31.onrender.com/ws/webcam");
 
         wsRef.current.onopen = () => {
           setIsConnected(true)

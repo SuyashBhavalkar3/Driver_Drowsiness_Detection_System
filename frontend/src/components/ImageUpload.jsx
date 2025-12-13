@@ -35,7 +35,7 @@ export default function ImageUpload({ setAnalysisResult }) {
       const formData = new FormData()
       formData.append('file', selectedFile)
 
-      const response = await fetch('http://localhost:8000/analyze', {
+      const response = await fetch('https://drowsiness-backend-kq31.onrender.com//analyze', {
         method: 'POST',
         body: formData,
       })
