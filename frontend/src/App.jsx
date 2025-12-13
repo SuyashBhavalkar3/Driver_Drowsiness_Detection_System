@@ -11,6 +11,8 @@ function App() {
     <div className="app">
       <Header />
 
+      <H1>It Will Not Work On Website Realtime Beacuse Renders Free Plan Doesnt Support Web Sockets You Can Try Out With Images</H1>
+
       <main className="app-main">
         {/* Tab Navigation */}
         <nav className="tab-nav">
