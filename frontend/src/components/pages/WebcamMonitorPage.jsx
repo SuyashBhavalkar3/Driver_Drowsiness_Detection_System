@@ -1,30 +1,44 @@
 import { useState } from 'react'
 import { Card, StatusIndicator, MetricBox, ErrorAlert } from '../common'
-import { useStatus, useWebcamFrame, useAlerts } from '../../hooks'
+import { useWebcamFrame, useAlerts } from '../../hooks'
 import './WebcamMonitorPage.css'
 
 export const WebcamMonitorPage = () => {
-  const { status, error: statusError } = useStatus(true, 500)
-  const { frameImgRef, isConnected } = useWebcamFrame(true, 100)
+  const {
+    videoRef,
+    canvasRef,
+    analysis,
+    isConnected,
+  } = useWebcamFrame(true, 10)
+
   const [alertsEnabled, setAlertsEnabled] = useState(true)
 
-  useAlerts(status, alertsEnabled)
+  useAlerts(analysis, alertsEnabled)
 
-  if (!status) {
+  if (!analysis) {
     return (
       <Card className="loading-card">
         <div className="loading-state">
           <div className="spinner"></div>
-          <p>Connecting to webcam feed...</p>
+          <p>Connecting to webcam...</p>
         </div>
       </Card>
     )
   }
 
-  const { ear, mar, drowsy, yawning } = status
-  const alertStatus = drowsy && yawning ? 'critical' : drowsy ? 'drowsy' : yawning ? 'yawning' : 'normal'
+  const { ear, mar, drowsy, yawning } = analysis
+
+  const alertStatus =
+    drowsy && yawning
+      ? 'critical'
+      : drowsy
+      ? 'drowsy'
+      : yawning
+      ? 'yawning'
+      : 'normal'
 
   const getMetricStatus = (value, threshold, isHigher = false) => {
+    if (value === undefined || value === null) return 'normal'
     if (isHigher) return value > threshold ? 'danger' : 'normal'
     return value < threshold ? 'danger' : 'normal'
   }
@@ -34,20 +48,33 @@ export const WebcamMonitorPage = () => {
       <div className="page-header">
         <h2>📹 Live Webcam Monitor</h2>
         <div className="connection-status">
-          <span className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></span>
+          <span
+            className={`status-dot ${
+              isConnected ? 'connected' : 'disconnected'
+            }`}
+          ></span>
           {isConnected ? 'Connected' : 'Disconnected'}
         </div>
       </div>
 
-      {statusError && <ErrorAlert message={statusError} />}
+      {!isConnected && (
+        <ErrorAlert message="WebSocket disconnected. Please refresh." />
+      )}
 
       <Card className="feed-card">
         <div className={`live-feed ${alertStatus}`}>
-          <img
-            ref={frameImgRef}
-            alt="Live Webcam Feed"
+          {}
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
             className="feed-image"
           />
+
+          {/* Hidden canvas for frame capture */}
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
+
           <div className="feed-overlay">
             <StatusIndicator status={alertStatus} />
           </div>

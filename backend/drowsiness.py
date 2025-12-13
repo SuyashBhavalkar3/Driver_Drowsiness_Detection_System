@@ -1,16 +1,10 @@
-import base64
-import io
-import threading
-import time
-from typing import Tuple
-
 import cv2
 import mediapipe as mp
 import numpy as np
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse
-from fastapi import FastAPI
+from typing import Tuple
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import UploadFile, File, HTTPException
 
 LEFT_EYE = [33, 160, 158, 133, 153, 144]
 RIGHT_EYE = [362, 385, 387, 263, 373, 380]
@@ -18,9 +12,6 @@ MOUTH = [78, 82, 13, 312, 311, 402]
 
 EAR_THRESHOLD = 0.25
 MAR_THRESHOLD = 0.7
-
-status_data = {"ear": 0.0, "mar": 0.0, "drowsy": False, "yawning": False}
-current_frame = {"image": None}  # Store the current annotated frame
 
 
 def euclidean(a: Tuple[float, float], b: Tuple[float, float]) -> float:
@@ -32,7 +23,7 @@ def calculate_ear(landmarks, eye_indices) -> float:
     A = euclidean(pts[1], pts[5])
     B = euclidean(pts[2], pts[4])
     C = euclidean(pts[0], pts[3])
-    return (A + B) / (2.0 * C) if C != 0 else 0.0
+    return (A + B) / (2.0 * C) if C else 0.0
 
 
 def calculate_mar(landmarks, mouth_indices) -> float:
@@ -40,35 +31,37 @@ def calculate_mar(landmarks, mouth_indices) -> float:
     A = euclidean(pts[1], pts[5])
     B = euclidean(pts[2], pts[4])
     C = euclidean(pts[0], pts[3])
-    return (A + B) / (2.0 * C) if C != 0 else 0.0
+    return (A + B) / (2.0 * C) if C else 0.0
 
 
-def annotate_frame(frame: np.ndarray, ear: float, mar: float, drowsy: bool, yawning: bool) -> np.ndarray:
-    h, w = frame.shape[:2]
-    text = f"EAR: {ear:.3f}  MAR: {mar:.3f}"
-    status = []
-    if drowsy:
-        status.append("DROWSY")
-    if yawning:
-        status.append("YAWN")
-    status_text = " | ".join(status) if status else "Alert"
-    color = (0, 255, 0) if not drowsy and not yawning else (0, 0, 255)
-    cv2.rectangle(frame, (0, 0), (w, 36), (0, 0, 0), -1)
-    cv2.putText(frame, text, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-    cv2.putText(frame, status_text, (8, 34), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-    return frame
+def analyze_frame(frame, face_mesh):
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = face_mesh.process(rgb)
+
+    ear = mar = 0.0
+    drowsy = yawning = False
+
+    if results.multi_face_landmarks:
+        landmarks = results.multi_face_landmarks[0].landmark
+        ear = (calculate_ear(landmarks, LEFT_EYE) +
+                calculate_ear(landmarks, RIGHT_EYE)) / 2.0
+        mar = calculate_mar(landmarks, MOUTH)
+        drowsy = ear < EAR_THRESHOLD
+        yawning = mar > MAR_THRESHOLD
+
+    return {
+        "ear": round(float(ear), 3),
+        "mar": round(float(mar), 3),
+        "drowsy": drowsy,
+        "yawning": yawning
+    }
 
 
-app = FastAPI(title="Drowsiness Detection API")
-
-
-origins = [
-    "http://localhost:5173",  # React dev server
-]
+app = FastAPI(title="Drowsiness Detection WS API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # or ["*"] to allow all (not recommended for production)
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -77,138 +70,59 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup():
-    
-    mp_face_mesh = mp.solutions.face_mesh
-    app.state.face_mesh = mp_face_mesh.FaceMesh(
-        max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.5, min_tracking_confidence=0.5
+    mp_face = mp.solutions.face_mesh
+    app.state.face_mesh = mp_face.FaceMesh(
+        max_num_faces=1,
+        refine_landmarks=True,
+        min_detection_confidence=0.5,
+        min_tracking_confidence=0.5
     )
-    
-    try:
-        start_webcam_background()
-    except Exception:
-        # If background cannot start, continue without crashing the app
-        pass
 
 
 @app.on_event("shutdown")
 def shutdown():
-    if hasattr(app.state, "face_mesh"):
-        app.state.face_mesh.close()
+    app.state.face_mesh.close()
 
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+@app.websocket("/ws/webcam")
+async def webcam_ws(ws: WebSocket):
+    await ws.accept()
+    face_mesh = app.state.face_mesh
 
+    while True:
+        data = await ws.receive_bytes()
+        frame = cv2.imdecode(
+            np.frombuffer(data, np.uint8),
+            cv2.IMREAD_COLOR
+        )
+
+        if frame is None:
+            continue
+
+        result = analyze_frame(frame, face_mesh)
+        await ws.send_json(result)
 
 @app.post("/analyze")
-async def analyze(file: UploadFile = File(...), ear_threshold: float = EAR_THRESHOLD, mar_threshold: float = MAR_THRESHOLD):
-    """Accepts an image upload and returns EAR, MAR, flags and annotated image (base64 PNG)."""
+async def analyze_image(file: UploadFile = File(...)):
+    # Read uploaded file
     data = await file.read()
-    arr = np.frombuffer(data, np.uint8)
-    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    if img is None:
-        return JSONResponse(status_code=400, content={"error": "Invalid image"})
+    frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
 
-    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    face_mesh = app.state.face_mesh
-    results = face_mesh.process(rgb)
+    if frame is None:
+        raise HTTPException(status_code=400, detail="Invalid image file")
 
-    ear = 0.0
-    mar = 0.0
-    drowsy = False
-    yawning = False
+    # Optional: resize large images for faster processing
+    max_dim = 640
+    h, w = frame.shape[:2]
+    if max(h, w) > max_dim:
+        scale = max_dim / max(h, w)
+        frame = cv2.resize(frame, (int(w*scale), int(h*scale)))
 
-    if results.multi_face_landmarks:
-        landmarks = results.multi_face_landmarks[0].landmark
-        left = calculate_ear(landmarks, LEFT_EYE)
-        right = calculate_ear(landmarks, RIGHT_EYE)
-        ear = float((left + right) / 2.0)
-        mar = float(calculate_mar(landmarks, MOUTH))
-        drowsy = ear < ear_threshold
-        yawning = mar > mar_threshold
+    # Analyze frame using face mesh
+    result = analyze_frame(frame, app.state.face_mesh)
 
-    status_data.update({"ear": float(ear), "mar": float(mar), "drowsy": bool(drowsy), "yawning": bool(yawning)})
+    # Check if a face was detected
+    if result["ear"] == 0.0 and result["mar"] == 0.0 and not result["drowsy"] and not result["yawning"]:
+        raise HTTPException(status_code=404, detail="No face detected in the image")
 
-    annotated = annotate_frame(img.copy(), ear, mar, drowsy, yawning)
-    _, buf = cv2.imencode('.png', annotated)
-    b64 = base64.b64encode(buf).decode('ascii')
-    b64_uri = f"data:image/png;base64,{b64}"
-
-    return {"ear": ear, "mar": mar, "drowsy": drowsy, "yawning": yawning, "annotated_image": b64_uri}
-
-
-@app.get("/status")
-def get_status():
-    return status_data
-
-
-@app.get("/frame")
-def get_frame():
-    """Returns the current annotated webcam frame as base64 PNG."""
-    if current_frame["image"] is None:
-        return JSONResponse(status_code=503, content={"error": "Webcam not available"})
-    
-    return {"frame": current_frame["image"]}
-
-
-# --- Optional: keep previous webcam loop support ---
-def webcam_loop():
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Cannot open webcam")
-        return
-    # Wait for app.state.face_mesh to be set by FastAPI startup
-    face_mesh = None
-    while True:
-        try:
-            face_mesh = app.state.face_mesh
-            break
-        except AttributeError:
-            time.sleep(0.05)
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            continue
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        try:
-            results = face_mesh.process(rgb)
-        except Exception:
-            # If face_mesh was closed or not ready, retry after a short delay
-            time.sleep(0.05)
-            continue
-        if results.multi_face_landmarks:
-            landmarks = results.multi_face_landmarks[0].landmark
-            left_ear = calculate_ear(landmarks, LEFT_EYE)
-            right_ear = calculate_ear(landmarks, RIGHT_EYE)
-            ear = (left_ear + right_ear) / 2.0
-            mar = calculate_mar(landmarks, MOUTH)
-            drowsy = ear < EAR_THRESHOLD
-            yawning = mar > MAR_THRESHOLD
-            status_data.update({
-                "ear": float(ear),
-                "mar": float(mar),
-                "drowsy": bool(drowsy),
-                "yawning": bool(yawning),
-            })
-        else:
-            status_data.update({"ear": 0.0, "mar": 0.0, "drowsy": False, "yawning": False})
-            drowsy = False
-            yawning = False
-        
-        # Annotate and store the frame for live feed
-        annotated = annotate_frame(frame.copy(), status_data["ear"], status_data["mar"], 
-                                   status_data["drowsy"], status_data["yawning"])
-        _, buf = cv2.imencode('.png', annotated)
-        b64 = base64.b64encode(buf).decode('ascii')
-        current_frame["image"] = f"data:image/png;base64,{b64}"
-        time.sleep(0.03)
-
-
-def start_webcam_background():
-    threading.Thread(target=webcam_loop, daemon=True).start()
-
-
-def start():
-    """Compatibility alias previously named `start()` in older code."""
-    start_webcam_background()
+    return result
