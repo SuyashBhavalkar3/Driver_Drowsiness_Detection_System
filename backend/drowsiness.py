@@ -1,4 +1,4 @@
-import cv2
+import cv2, os, uvicorn
 import mediapipe as mp
 import numpy as np
 from typing import Tuple
@@ -128,3 +128,7 @@ async def analyze_image(file: UploadFile = File(...)):
         raise HTTPException(status_code=404, detail="No face detected in the image")
 
     return result
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("drowsiness:app", host="0.0.0.0", port=port, reload=True)
